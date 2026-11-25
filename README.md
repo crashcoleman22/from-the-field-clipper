@@ -31,6 +31,26 @@
 
 Chopify is an open-source Python app with a local browser dashboard and a CLI. Import a recording or a video URL, find moments, correct captions, review drafts, and export MP4 clips with SRT subtitles. No subscription, API key, cloud upload, or watermark. The [live site](https://mehbul.github.io/chopify/) is a product tour; the app itself runs on your computer.
 
+## From the Field deployment (Coder workspace)
+
+This fork adds a separate, Coder-hosted podcast workflow at `app.py` for the
+*From the Field* agronomy podcast. It keeps the upstream Chopify pipeline and
+engineering, but replaces the local-only Studio entry point with:
+
+- browser uploads into `/home/coder/podcast-clipper-data` (outside Git);
+- Parakeet transcription, sentence-aware clip discovery, and AI-assisted or
+  deterministic editorial scoring;
+- human review of exact transcript, timestamps, titles, descriptions, and
+  platform recommendations;
+- approval and export of one captioned 1080×1920 master per approved clip,
+  with separate YouTube Shorts, Instagram Reels, and Facebook metadata;
+- persistent queue/auto-resume, storage management, and brand settings.
+
+See **[CODER.md](CODER.md)** for setup, the URL, authentication, first-episode
+instructions, and known limitations. The original Chopify Studio and CLI remain
+available (`dashboard.py`, `chopify.py`).
+
+
 [Workflow guide](docs/WORKFLOWS.md) · [CLI reference](docs/CLI.md) · [Agent/API reference](docs/AGENT-API.md) · [Live clipping](docs/LIVE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md)
 
 ## What can Chopify do?

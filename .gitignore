@@ -11,12 +11,31 @@ __pycache__/
 *.log
 *.sh
 !install.sh
+!scripts/*.sh
 
-# chopify outputs
+# generated media and persistent app data
 clips/
+previews/
 projects/
+exports/
+uploads/
+sources/
+models/
+podcast-clipper-data/
+brand/chopify-brand.json
+brand/vocabulary.json
 _site/
 .pytest_cache/
+
+# secrets / runtime state
+.env
+.env.*
+access-code.txt
+.session-secret
+ai.json
+app.db
+queue.json
+app.pid
 
 # local AI agent state
 .mimosa/

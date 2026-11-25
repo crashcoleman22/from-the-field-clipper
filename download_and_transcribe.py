@@ -12,6 +12,7 @@ import sys
 import json
 import argparse
 import os
+import re
 import subprocess
 import tempfile
 import shutil
@@ -174,8 +175,66 @@ def transcribe(video, workdir, model_size, device, compute_type, duration=None,
     return out
 
 
+def _vocabulary_map():
+    """Load an optional custom vocabulary correction map for this process.
+
+    The Coder app writes {"wrong term": "Right Term"} to a file and points
+    PODCAST_CLIPPER_VOCAB at it. Corrections are only applied when the key
+    appears as a whole token, so ordinary words are left alone.
+    """
+    source = os.environ.get("PODCAST_CLIPPER_VOCAB")
+    if not source:
+        return {}
+    try:
+        raw = json.loads(Path(source).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+    if isinstance(raw, list):
+        pairs = raw
+    elif isinstance(raw, dict):
+        pairs = [[key, value] for key, value in raw.items()]
+    else:
+        return {}
+    mapping = {}
+    for pair in pairs:
+        if (isinstance(pair, (list, tuple)) and len(pair) == 2
+                and isinstance(pair[0], str) and isinstance(pair[1], str)
+                and pair[0].strip() and pair[1].strip()):
+            mapping[pair[0].strip().lower()] = pair[1].strip()
+    return mapping
+
+
+_TOKEN_EDGES = ".,!?;:\"'()[]{}"
+
+
+def _apply_vocabulary(transcript):
+    """Correct known agronomy terms without inventing or reordering speech."""
+    mapping = _vocabulary_map()
+    if not mapping:
+        return transcript
+    for word in transcript.get("words") or []:
+        token = str(word.get("word", ""))
+        lead = token[:len(token) - len(token.lstrip(_TOKEN_EDGES))]
+        tail = token[len(token.rstrip(_TOKEN_EDGES)):]
+        core = token.strip(_TOKEN_EDGES)
+        replacement = mapping.get(core.lower())
+        if replacement is not None:
+            word["word"] = lead + replacement + tail
+    for segment in transcript.get("segments") or []:
+        text = str(segment.get("text", ""))
+        for wrong, right in sorted(mapping.items(), key=lambda kv: -len(kv[0])):
+            pattern = re.compile(r"(?<![\w])" + re.escape(wrong) + r"(?![\w])",
+                                 re.IGNORECASE)
+            text = pattern.sub(right, text)
+        segment["text"] = text
+    transcript["vocabulary_corrected"] = len(mapping)
+    return transcript
+
+
 def _atomic_json(path, data):
     path = Path(path)
+    if path.name == "transcript.json" and isinstance(data, dict):
+        data = _apply_vocabulary(data)
     temp = path.with_suffix(path.suffix + ".tmp")
     temp.write_text(json.dumps(data, ensure_ascii=False, indent=2),
                     encoding="utf-8")
