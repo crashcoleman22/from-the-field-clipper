@@ -512,6 +512,7 @@ async function renderReviewDetail(root, episodeId) {
         ${episode.error ? `<pre class="error-box">${esc(episode.error)}</pre>` : ""}
       </div>
       <div class="row-actions">
+        <button class="button ghost small" id="refresh-btn">Refresh</button>
         <button class="button ghost small" id="save-title">Save title</button>
         <button class="button ghost small" id="preview-btn">Render previews</button>
         <button class="button ghost small" id="reprocess-btn">Reprocess</button>
@@ -559,6 +560,12 @@ async function renderReviewDetail(root, episodeId) {
       </section>
     </div>`;
   wireReview(root, episodeId, data);
+  if (["queued", "processing", "rendering", "rendering_previews"].includes(episode.status)) {
+    clearTimeout(renderReviewDetail.timer);
+    renderReviewDetail.timer = setTimeout(() => {
+      if (state.view === "review" && (location.hash || "").includes(episodeId)) render();
+    }, 5000);
+  }
 }
 
 function reviewClipCard(clip, index, data) {
@@ -577,7 +584,10 @@ function reviewClipCard(clip, index, data) {
           <span class="score ${clip.overall >= 75 ? "good" : clip.overall >= 55 ? "warn" : ""}">${esc(clip.overall || 0)}</span>
         </div>
         <p class="muted">${fmtClock(clip.start)}–${fmtClock(clip.end)} ·
-          ${Math.round(clip.duration || 0)}s · ${statusPill(clip.decision === "approved" ? "approved" : clip.decision === "rejected" ? "rejected" : "queued")}
+          ${Math.round(clip.duration || 0)}s ·
+          ${clip.decision === "approved" ? '<span class="pill good">Approved</span>'
+            : clip.decision === "rejected" ? '<span class="pill bad">Rejected</span>'
+            : '<span class="pill warn">Pending review</span>'}
           ${clip.ai ? '<span class="pill subtle">AI assisted</span>' : '<span class="pill subtle">Deterministic</span>'}</p>
       </div>
       <button class="button ghost small" data-play="${esc(clip.start)}" data-end="${esc(clip.end)}">Play clip</button>
@@ -643,6 +653,10 @@ function wireReview(root, episodeId, data) {
   $$(".clip-select", root).forEach((box) => box.addEventListener("change", () => {
     if (box.checked) state.selected.add(box.value); else state.selected.delete(box.value);
   }));
+  $("#refresh-btn", root).addEventListener("click", () => {
+    state.selected.clear();
+    render();
+  });
   $("#save-title", root).addEventListener("click", async () => {
     try {
       const title = $("#episode-title", root).textContent.trim();
@@ -975,6 +989,7 @@ function renderComingSoon(title, copy) {
 
 /* -------------------------------------------------------------------- router */
 function route() {
+  clearTimeout(renderReviewDetail.timer);
   const raw = (location.hash || "#/overview").replace(/^#\/?/, "");
   const parts = raw.split("/").filter(Boolean);
   state.view = parts[0] || "overview";
