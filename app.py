@@ -377,10 +377,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._gate(parts, "POST"):
             return
         try:
-            if parts == ["login"]:
-                return self.login_post()
             if not self._origin_ok():
                 return self.send_error_json("Cross-origin request rejected.", 403)
+            if parts == ["login"]:
+                return self.login_post()
             if not self._csrf():
                 return self.send_error_json("Reload the page and retry.", 403)
             self.route_post(parts)
