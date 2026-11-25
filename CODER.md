@@ -237,7 +237,7 @@ End-to-end validation performed in this workspace:
   access code) has the same full access.
 - **No external object storage.** Backups and retention are the workspace
   volume's responsibility.
-- **28-second test source** may select one longer clip because there are not
+- **Very short sources** may select one longer clip because there are not
   enough sentence boundaries to meet the 30-second minimum; real episodes use
   the preferred 30–90 second window.
 - **`ffmpeg` loudness normalization** changes level, not speech content; the
