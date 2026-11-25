@@ -274,3 +274,17 @@ def test_queue_recovers_and_resumes_running_job(store):
         assert status["jobs"][0]["status"] == "done"
     finally:
         queue.shutdown()
+
+
+def test_queue_can_defer_worker_start(store):
+    import job_queue
+    ran = threading.Event()
+    queue = job_queue.JobQueue(store, lambda job, log_path: ran.set() or {"ok": True},
+                               autostart=False)
+    try:
+        queue.enqueue("aabbccddeeff", "prepare")
+        assert not ran.wait(0.4), "worker ran before start()"
+        queue.start()
+        assert ran.wait(5), "worker did not run after start()"
+    finally:
+        queue.shutdown()

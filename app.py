@@ -57,10 +57,12 @@ class App:
         self.uploads = None
         import uploads as upload_module
         self.uploads = upload_module.UploadManager(self.store)
-        self.queue = job_queue.JobQueue(self.store, self._run_job)
+        self.queue = job_queue.JobQueue(self.store, self._run_job,
+                                        autostart=False)
         self.host = host
         self.port = port
         self.started = now()
+        self.queue.start()
         self.recovered = self._recover_episodes()
 
     def _run_job(self, job: dict, log_path: Path) -> dict:
@@ -89,9 +91,6 @@ class App:
 
     def _recover_episodes(self) -> int:
         """Restart interrupted work automatically after an app restart."""
-        active = {(job.get("episode_id"), job.get("kind"))
-                  for job in self.queue.status()["jobs"]
-                  if job.get("status") in {"pending", "running"}}
         recovered = 0
         for path in self.store.projects.glob("*/episode.json"):
             try:
@@ -100,27 +99,34 @@ class App:
                 continue
             episode_id = episode.get("id")
             status = episode.get("status")
-            if not episode_id or (episode_id, "prepare") in active:
+            if not episode_id:
                 continue
+            kind = None
+            meta = None
             if status in {"queued", "processing"}:
-                self.queue.enqueue(episode_id, "prepare", force=True)
-                recovered += 1
-            elif status in {"rendering", "rendering_previews"}:
-                kind = "preview" if status == "rendering_previews" else "render"
+                kind = "prepare"
+            elif status == "rendering_previews":
+                kind = "preview"
+            elif status == "rendering":
                 approved = [clip["clip_id"] for clip in episodes.merged_clips(self.store, episode_id)
                             if clip.get("decision") == episodes.APPROVED]
-                if kind == "render" and approved:
-                    self.queue.enqueue(episode_id, kind,
-                                       meta={"clip_ids": approved}, force=True)
-                elif kind == "preview":
-                    self.queue.enqueue(episode_id, kind, force=True)
-                recovered += 1
+                if approved:
+                    kind = "render"
+                    meta = {"clip_ids": approved}
             elif not (path.parent / "editorial.json").is_file():
                 state = storage.read_json(path.parent / "project.json") \
                     if (path.parent / "project.json").is_file() else {}
                 if state.get("status") == "review":
-                    self.queue.enqueue(episode_id, "prepare", force=True)
-                    recovered += 1
+                    kind = "prepare"
+            if kind is None:
+                continue
+            active = {(job.get("episode_id"), job.get("kind"))
+                      for job in self.queue.status()["jobs"]
+                      if job.get("status") in {"pending", "running"}}
+            if (episode_id, kind) in active:
+                continue
+            self.queue.enqueue(episode_id, kind, meta=meta, force=True)
+            recovered += 1
         return recovered
 
     def shutdown(self) -> None:

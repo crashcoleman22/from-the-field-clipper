@@ -13,7 +13,7 @@ import storage
 
 
 class JobQueue:
-    def __init__(self, store: storage.Store, runner):
+    def __init__(self, store: storage.Store, runner, autostart: bool = True):
         self.store = store
         self.runner = runner            # callable(job, log_path) -> result dict
         self.path = store.root / "queue.json"
@@ -26,7 +26,13 @@ class JobQueue:
         self.thread = threading.Thread(target=self._loop, name="ftf-queue",
                                        daemon=True)
         self.recovered = self._recover()
-        self.thread.start()
+        if autostart:
+            self.start()
+
+    def start(self) -> None:
+        """Start the worker once the owner has finished wiring its callbacks."""
+        if not self.thread.is_alive():
+            self.thread.start()
 
     # -- persistence --------------------------------------------------------
     def _load(self) -> list[dict]:
